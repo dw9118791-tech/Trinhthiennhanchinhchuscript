@@ -1,0 +1,279 @@
+local Players=game:GetService("Players")
+local UIS=game:GetService("UserInputService")
+local RunService=game:GetService("RunService")
+
+local LP=Players.LocalPlayer
+local PG=LP:WaitForChild("PlayerGui")
+
+local ACTIVE=false
+local POWER=10000
+local RANGE=10
+local MIN_RANGE=1
+local MAX_RANGE=50
+local COOLDOWN=.35
+local TOUCH_COOLDOWN=.2
+local LAST={}
+local TOUCH_LAST={}
+
+local G=Instance.new("ScreenGui",PG)
+G.Name="BananaFling"
+G.ResetOnSpawn=false
+
+local function corner(x,r)
+	local c=Instance.new("UICorner",x)
+	c.CornerRadius=UDim.new(0,r)
+end
+
+local function btn(p,t,pos,size)
+	local b=Instance.new("TextButton",p)
+	b.Text=t
+	b.Position=pos
+	b.Size=size
+	b.TextSize=15
+	b.Font=Enum.Font.GothamBold
+	b.TextColor3=Color3.new(1,1,1)
+	b.BackgroundColor3=Color3.fromRGB(28,40,31)
+	corner(b,10)
+	return b
+end
+
+local toggle=Instance.new("TextButton",G)
+toggle.Size=UDim2.fromOffset(62,62)
+toggle.Position=UDim2.fromOffset(15,110)
+toggle.Text="🍌"
+toggle.TextSize=30
+toggle.BackgroundColor3=Color3.fromRGB(18,25,18)
+toggle.TextColor3=Color3.new(1,1,1)
+corner(toggle,18)
+
+local menu=Instance.new("Frame",G)
+menu.Size=UDim2.fromOffset(285,330)
+menu.Position=UDim2.fromOffset(15,180)
+menu.BackgroundColor3=Color3.fromRGB(10,16,12)
+menu.Visible=true
+corner(menu,18)
+
+local stroke=Instance.new("UIStroke",menu)
+stroke.Thickness=2
+stroke.Color=Color3.fromRGB(110,255,90)
+
+local title=Instance.new("TextLabel",menu)
+title.Size=UDim2.new(1,0,0,45)
+title.BackgroundTransparency=1
+title.Text="trinhthiennhan"
+title.TextSize=20
+title.Font=Enum.Font.GothamBold
+title.TextColor3=Color3.fromRGB(150,255,100)
+
+local status=Instance.new("TextLabel",menu)
+status.Size=UDim2.new(1,0,0,28)
+status.Position=UDim2.fromOffset(0,43)
+status.BackgroundTransparency=1
+status.Text="● FLING ĐANG TẮT"
+status.TextSize=12
+status.Font=Enum.Font.GothamBold
+status.TextColor3=Color3.fromRGB(255,120,120)
+
+local active=btn(menu,"💥 FLING: TẮT",
+	UDim2.fromOffset(12,75),UDim2.new(1,-24,0,43))
+
+local rangeText=Instance.new("TextLabel",menu)
+rangeText.Size=UDim2.new(1,0,0,32)
+rangeText.Position=UDim2.fromOffset(0,125)
+rangeText.BackgroundTransparency=1
+rangeText.Text="📏 PHẠM VI: "..RANGE.."M"
+rangeText.TextSize=15
+rangeText.Font=Enum.Font.GothamBold
+rangeText.TextColor3=Color3.new(1,1,1)
+
+local rMinus=btn(menu,"−",
+	UDim2.fromOffset(12,160),UDim2.fromOffset(60,42))
+
+local rPlus=btn(menu,"+",
+	UDim2.new(1,-72,0,160),UDim2.fromOffset(60,42))
+
+local powerText=Instance.new("TextLabel",menu)
+powerText.Size=UDim2.new(1,0,0,32)
+powerText.Position=UDim2.fromOffset(0,207)
+powerText.BackgroundTransparency=1
+powerText.Text="💨 LỰC: "..POWER
+powerText.TextSize=15
+powerText.Font=Enum.Font.GothamBold
+powerText.TextColor3=Color3.new(1,1,1)
+
+local pMinus=btn(menu,"−",
+	UDim2.fromOffset(12,242),UDim2.fromOffset(60,42))
+
+local pPlus=btn(menu,"+",
+	UDim2.new(1,-72,0,242),UDim2.fromOffset(60,42))
+
+local info=Instance.new("TextLabel",menu)
+info.Size=UDim2.new(1,-20,0,25)
+info.Position=UDim2.fromOffset(10,295)
+info.BackgroundTransparency=1
+info.Text="📏 TẦM TỐI ĐA: 50M • 360°"
+info.TextSize=11
+info.Font=Enum.Font.GothamBold
+info.TextColor3=Color3.fromRGB(150,170,150)
+
+toggle.MouseButton1Click:Connect(function()
+	menu.Visible=not menu.Visible
+end)
+
+active.MouseButton1Click:Connect(function()
+	ACTIVE=not ACTIVE
+	active.Text=ACTIVE and "💥 FLING: BẬT" or "💥 FLING: TẮT"
+	status.Text=ACTIVE and "● FLING ĐANG BẬT" or "● FLING ĐANG TẮT"
+	status.TextColor3=ACTIVE
+		and Color3.fromRGB(100,255,150)
+		or Color3.fromRGB(255,120,120)
+end)
+
+-- PHẠM VI: +/- 10M, TỐI ĐA 50M
+rMinus.MouseButton1Click:Connect(function()
+	RANGE=math.max(MIN_RANGE,RANGE-10)
+	rangeText.Text="📏 PHẠM VI: "..RANGE.."M"
+end)
+
+rPlus.MouseButton1Click:Connect(function()
+	RANGE=math.min(MAX_RANGE,RANGE+10)
+	rangeText.Text="📏 PHẠM VI: "..RANGE.."M"
+end)
+
+-- LỰC: +/- 100
+pMinus.MouseButton1Click:Connect(function()
+	POWER=math.max(100,POWER-100)
+	powerText.Text="💨 LỰC: "..POWER
+end)
+
+pPlus.MouseButton1Click:Connect(function()
+	POWER=POWER+100
+	powerText.Text="💨 LỰC: "..POWER
+end)
+
+local dragging=false
+local dragStart
+local startPos
+
+menu.InputBegan:Connect(function(i)
+	if i.UserInputType==Enum.UserInputType.MouseButton1
+	or i.UserInputType==Enum.UserInputType.Touch then
+		dragging=true
+		dragStart=i.Position
+		startPos=menu.Position
+	end
+end)
+
+UIS.InputChanged:Connect(function(i)
+	if dragging and (
+		i.UserInputType==Enum.UserInputType.MouseMovement
+		or i.UserInputType==Enum.UserInputType.Touch
+	) then
+		local d=i.Position-dragStart
+		menu.Position=UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset+d.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset+d.Y
+		)
+	end
+end)
+
+UIS.InputEnded:Connect(function(i)
+	if i.UserInputType==Enum.UserInputType.MouseButton1
+	or i.UserInputType==Enum.UserInputType.Touch then
+		dragging=false
+	end
+end)
+
+local function flingPlayer(plr,root,myRoot)
+	if not root or not myRoot then return end
+
+	local now=os.clock()
+	if LAST[plr] and now-LAST[plr]<COOLDOWN then return end
+	LAST[plr]=now
+
+	local offset=root.Position-myRoot.Position
+	local direction
+
+	if offset.Magnitude>.05 then
+		direction=offset.Unit
+	else
+		direction=myRoot.CFrame.LookVector
+	end
+
+	root.AssemblyLinearVelocity=
+		direction*POWER+
+		Vector3.new(0,POWER*.65,0)
+end
+
+local function touched(part)
+	if not ACTIVE then return end
+
+	local targetCharacter=part and part:FindFirstAncestorOfClass("Model")
+	if not targetCharacter then return end
+
+	local plr=Players:GetPlayerFromCharacter(targetCharacter)
+	if not plr or plr==LP then return end
+
+	local targetRoot=targetCharacter:FindFirstChild("HumanoidRootPart")
+	local hum=targetCharacter:FindFirstChildOfClass("Humanoid")
+	local myCharacter=LP.Character
+	local myRoot=myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
+
+	if not targetRoot or not hum or not myRoot or hum.Health<=0 then return end
+
+	local now=os.clock()
+	if TOUCH_LAST[plr] and now-TOUCH_LAST[plr]<TOUCH_COOLDOWN then return end
+	TOUCH_LAST[plr]=now
+
+	flingPlayer(plr,targetRoot,myRoot)
+end
+
+local function setupCharacter(character)
+	for _,part in ipairs(character:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.Touched:Connect(touched)
+		end
+	end
+
+	character.DescendantAdded:Connect(function(part)
+		if part:IsA("BasePart") then
+			part.Touched:Connect(touched)
+		end
+	end)
+end
+
+if LP.Character then
+	setupCharacter(LP.Character)
+end
+
+LP.CharacterAdded:Connect(function(character)
+	LAST={}
+	TOUCH_LAST={}
+	setupCharacter(character)
+end)
+
+RunService.Heartbeat:Connect(function()
+	if not ACTIVE then return end
+
+	local myCharacter=LP.Character
+	local myRoot=myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
+	if not myRoot then return end
+
+	for _,plr in ipairs(Players:GetPlayers()) do
+		if plr~=LP then
+			local character=plr.Character
+			local root=character and character:FindFirstChild("HumanoidRootPart")
+			local hum=character and character:FindFirstChildOfClass("Humanoid")
+
+			if root and hum and hum.Health>0 then
+				local distance=(root.Position-myRoot.Position).Magnitude
+
+				if distance<=RANGE and distance>.05 then
+					flingPlayer(plr,root,myRoot)
+				end
+			end
+		end
+	end
+end)
